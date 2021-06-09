@@ -15,18 +15,19 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include "settings.h"
-#include "simulation.h"
+#include "button.h"
+#include "ledIndicator.h"
 
 #define NAME "Terzsteer"
 #define STEERING_DEVICE_UUID "347b0001-7635-408b-8918-8ff3949ce592"
 #define STEERING_ANGLE_CHAR_UUID "347b0030-7635-408b-8918-8ff3949ce592" //notify
 #define STEERING_RX_CHAR_UUID "347b0031-7635-408b-8918-8ff3949ce592"    //write
 #define STEERING_TX_CHAR_UUID "347b0032-7635-408b-8918-8ff3949ce592"    //indicate
-
+#define MAX_ANGLE 40.0
+#define SEND_FREQUENCY_MILLISECONDS 1000
 #define DELAY_HANDSHAKE 125
 #define DELAY_HANDSHAKE2 250
-#define DELAY_BLE_COOLDOWN 100
-#define DELAY_BLINK 250
+#define DELAY_LOOP_COOLDOWN 100
 #define NOTIFY_NODATA_FREQUENCY 20
 
 #define CHANNEL_CONNECTION 15
@@ -37,22 +38,11 @@
 unsigned long timer_ble_cooldown = 0;
 unsigned long timer_blink = 0;
 unsigned long timer_bleNotifyMillis;
-unsigned long timer_simulateLeftButton;
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 bool authenticated = false;
 float currentAngle = 0.0;
-
-#ifdef DEBUG_TO_SERIAL
-#define serialPrintln(X) Serial.println(X)
-#define serialPrint(X) Serial.print(X)
-#define serialBegin(X) Serial.begin(X)
-#else
-#define serialPrintln(X)
-#define serialPrint(X)
-#define serialBegin(X)
-#endif
 
 int FF = 0xFF;
 byte authChallenge[4] = {0x03, 0x10, 0xff, 0xff};
@@ -63,6 +53,9 @@ BLECharacteristic *pAngle = NULL;
 BLECharacteristic *pRx = NULL;
 BLECharacteristic *pTx = NULL;
 BLEAdvertising *pAdvertising;
+
+Button *button = NULL;
+LedIndicator *ledIndicator = NULL;
 
 class MyServerCallbacks : public BLEServerCallbacks
 {
@@ -77,78 +70,21 @@ class MyServerCallbacks : public BLEServerCallbacks
     }
 };
 
-void adjustAngleInBounds(float &angle)
+void adjustAngleInBounds(float* angle)
 {
-    if (angle < -40.0)
-        angle = -40.0;
-    if (angle > 40.0)
-        angle = 40.0;
+    if (*angle < -MAX_ANGLE)
+        *angle = -MAX_ANGLE;
+    if (*angle > MAX_ANGLE)
+        *angle = MAX_ANGLE;
 }
 
-float getAngleDelta()
-{
-    float delta = 0.0;
-    bool buttonLeft = false;
-    bool buttonRight = false;
-#ifdef SIMULATE_STEERING
-    static int simulationIndex = 0;
-
-    if (millis() - timer_simulateLeftButton > SIMULATE_EVENT_FREQUENCY)
-    {
-        simulationIndex = simulationIndex % sizeof(simulations);
-        buttonLeft = (simulations[simulationIndex] == left);
-        buttonRight = (simulations[simulationIndex] == right);
-        char s[50];
-        snprintf_P(s, sizeof(s), PSTR("Simulate buttons: left=%u, right=%u"), buttonLeft, buttonRight);
-        serialPrintln(s);
-        timer_simulateLeftButton = millis();
-        simulationIndex++;
-    }
-#else
-    buttonLeft = digitalRead(LEFT_BUTTON);
-    buttonRight = digitalRead(RIGHT_BUTTON);
-#endif
-
-    if (buttonLeft)
-        delta = -10.0;
-    if (buttonRight)
-        delta = 10.0;
-    return delta;
-}
-
-void handleIndicatorLights(float angle)
-{
-    //allways on when waiting
-    if (!deviceConnected)
-    {
-        ledcWrite(CHANNEL_CONNECTION, 100);
-    }
-    else if (!authenticated)
-    {
-        ledcWrite(CHANNEL_CONNECTION, 255);
-    }
-
-    if (millis() - timer_blink < DELAY_BLINK)
-    {
-        return;
-    }
-    timer_blink = millis();
-
-    if (authenticated)
-    {
-        ledcWrite(CHANNEL_CONNECTION, 100);
-    }
-
-    ledcWrite(CHANNEL_LEFT, map((int)angle, -41, -1, 0, 255));
-    ledcWrite(CHANNEL_RIGHT, map((int)angle, 1, 40, 0, 255));
-}
 
 bool trySendAngle(float angle)
 {
     //Must be connected to Zwift.
     bool isSent = false;
     // notify steering angle every second
-    if (millis() - timer_bleNotifyMillis > 1000)
+    if (millis() - timer_bleNotifyMillis > SEND_FREQUENCY_MILLISECONDS)
     {
         serialPrint("Angle: ");
         serialPrintln(angle);
@@ -169,7 +105,7 @@ void authenticate()
     //start the connection process
     pTx->setValue(FF);
     pTx->indicate();
-    
+
     //handshaking
     std::string rxValue = pRx->getValue();
     if (rxValue.length() == 0)
@@ -212,18 +148,15 @@ void authenticate()
 void setup()
 {
     serialBegin(115200);
+    serialPrintln("Starting...");
 
-    serialPrintln("Indicator lights on in startup...");
-    pinMode(LED_CONNECTION, OUTPUT);
-    pinMode(LED_LEFT, OUTPUT);
-    pinMode(LED_RIGHT, OUTPUT);
-    digitalWrite(LED_CONNECTION, HIGH);
-    digitalWrite(LED_LEFT, HIGH);
-    digitalWrite(LED_RIGHT, HIGH);
-
+#ifdef USE_LEDS
+    serialPrintln("Setup LEDs...");
+    ledIndicator = new LedIndicator();
+    ledIndicator->starting(true);
+#endif
     serialPrintln("Setup buttons...");
-    pinMode(LEFT_BUTTON, INPUT);
-    pinMode(RIGHT_BUTTON, INPUT);
+    button = new Button();
 
     serialPrintln("Creating BLE server...");
     BLEDevice::init(NAME);
@@ -253,51 +186,55 @@ void setup()
     serialPrintln("Starting advertiser...");
     BLEDevice::startAdvertising();
     serialPrintln("Waiting a client connection to notify...");
-
-    // LED channels
-    ledcSetup(CHANNEL_CONNECTION, 5000, 8);
-    ledcAttachPin(LED_CONNECTION, CHANNEL_CONNECTION);
-    ledcSetup(CHANNEL_LEFT, 5000, 8);
-    ledcAttachPin(LED_LEFT, CHANNEL_LEFT);
-    ledcSetup(CHANNEL_RIGHT, 5000, 8);
-    ledcAttachPin(LED_RIGHT, CHANNEL_RIGHT);
+    
+    ledIndicator->starting(false);
 }
 
 void loop()
 {
-    currentAngle += getAngleDelta();
-    adjustAngleInBounds(currentAngle);
-    handleIndicatorLights(currentAngle);
+    ButtonPressEvent event = button->getButtonPress();
+    
+    currentAngle += event.getAngleDelta();
+    //if (currentAngle < -MAX_ANGLE)
+    //    currentAngle = -MAX_ANGLE;
+    //if (currentAngle > MAX_ANGLE)
+    //    currentAngle = MAX_ANGLE;
+
+    if (ledIndicator != NULL)
+    {
+        ledIndicator->updateState(authenticated, event.left, event.right);
+    }
 
     // small interval so BLE stack doesn't get overloaded
-    if (millis() - timer_ble_cooldown > DELAY_BLE_COOLDOWN)
+    if (millis() - timer_ble_cooldown > DELAY_LOOP_COOLDOWN)
     {
         timer_ble_cooldown = millis();
         if (deviceConnected)
         {
             if (authenticated)
             {
-                if (trySendAngle(currentAngle)) currentAngle = 0.0;
+                if (trySendAngle(currentAngle))
+                    currentAngle = 0.0;
             }
             else
             {
                 authenticate();
             }
         }
-    }
 
-    // disconnecting
-    if (!deviceConnected && oldDeviceConnected)
-    {
-        delay(DELAY_HANDSHAKE2);     // give the bluetooth stack the chance to get things ready
-        pServer->startAdvertising(); // restart advertising
-        serialPrintln("Nothing connected, start advertising");
-        oldDeviceConnected = deviceConnected;
-    }
-    // connecting
-    if (deviceConnected && !oldDeviceConnected)
-    {
-        oldDeviceConnected = deviceConnected;
-        serialPrintln("Connecting...");
+        // disconnecting
+        if (!deviceConnected && oldDeviceConnected)
+        {
+            delay(DELAY_HANDSHAKE2);     // give the bluetooth stack the chance to get things ready
+            pServer->startAdvertising(); // restart advertising
+            serialPrintln("Nothing connected, start advertising");
+            oldDeviceConnected = deviceConnected;
+        }
+        // connecting
+        if (deviceConnected && !oldDeviceConnected)
+        {
+            oldDeviceConnected = deviceConnected;
+            serialPrintln("Connecting...");
+        }
     }
 }

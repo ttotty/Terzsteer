@@ -10,3 +10,4 @@ Hook up two TTP223 touch pads on ESP32 board and 3 LEDs
  * Each key-press gives +-10° on the steering angle
  * angle is sent every second
  * LEDs indicate connection/authentication state and steering direction
+ * buttons can be simulated for testing
