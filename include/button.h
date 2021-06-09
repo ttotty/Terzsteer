@@ -19,13 +19,6 @@ enum direction
     straight5Sec,
     straight10Sec
 };
-const direction simulations[20] = {left, straight5Sec, 
-                                   right, straight1Sec,
-                                   straight, straight, straight,
-                                   right, straight5Sec,
-                                   right, right, left, straight1Sec,
-                                   straight10Sec,
-                                   right, right, right, right, right, straight5Sec};
 
 struct ButtonPressEvent
 {
@@ -47,9 +40,16 @@ struct ButtonPressEvent
         sprintf(outStr, "Button press: left=%u, right=%u, delta=%f", left, right, getAngleDelta());
     }
 };
+#ifdef SIMULATE_STEERING
+const direction simulations[20] = {left, straight5Sec, 
+                                   right, straight1Sec,
+                                   straight, straight, straight,
+                                   right, straight5Sec,
+                                   right, right, left, straight1Sec,
+                                   straight10Sec,
+                                   right, right, right, right, right, straight5Sec};
 
 ButtonPressEvent simulationEvent;
-SemaphoreHandle_t simulationSemaphore = xSemaphoreCreateBinary();
 class ButtonSimulation
 {
     static void task(void *parameters)
@@ -62,12 +62,9 @@ class ButtonSimulation
             delay = DEFAULT_DELAY;
             simulationIndex = simulationIndex % eventCount;
             direction event = simulations[simulationIndex++];
-            if ( xSemaphoreTake( simulationSemaphore, ( TickType_t ) 5 ) == pdTRUE )
-            {
                 simulationEvent.left = (event == left);
                 simulationEvent.right = (event == right);
-                xSemaphoreGive(simulationSemaphore);
-            }
+
             if (event == straight1Sec)
                 delay = DELAY_1_SECOND;
             else if (event == straight5Sec)
@@ -79,16 +76,12 @@ class ButtonSimulation
     }
 
 public:
-    ButtonPressEvent useSimulation()
+    void getCurrentEvent(ButtonPressEvent& event)
     {        
-        ButtonPressEvent currentEvent = simulationEvent;
-        if ( xSemaphoreTake( simulationSemaphore, ( TickType_t ) 5 ) == pdTRUE )
-        {
+            event.left = simulationEvent.left;
+            event.right = simulationEvent.right;
             simulationEvent.left = false;
             simulationEvent.right = false;
-            xSemaphoreGive(simulationSemaphore);
-        }
-        return currentEvent;
     }
 
     ButtonSimulation()
@@ -102,6 +95,7 @@ public:
             NULL);
     }
 };
+#endif
 
 class Button
 {
@@ -121,16 +115,13 @@ public:
     ButtonPressEvent getButtonPress()
     {
         ButtonPressEvent event;
+#ifdef SIMULATE_STEERING
+        buttonSimulation->getCurrentEvent(event);
+#else
+        event.left = digitalRead(LEFT_BUTTON);
+        event.right = digitalRead(RIGHT_BUTTON);
+#endif
 
-        if (buttonSimulation != NULL)
-        {
-            event = buttonSimulation->useSimulation();
-        }
-        else
-        {
-            event.left = digitalRead(LEFT_BUTTON);
-            event.right = digitalRead(RIGHT_BUTTON);
-        }
 #ifdef SERIAL_ALL_EVENTS
         float deltaAngle = event.getAngleDelta();
         static float previousDelta = 0.0;

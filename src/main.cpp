@@ -70,12 +70,12 @@ class MyServerCallbacks : public BLEServerCallbacks
     }
 };
 
-void adjustAngleInBounds(float* angle)
+void adjustAngleInBounds(float& angle)
 {
-    if (*angle < -MAX_ANGLE)
-        *angle = -MAX_ANGLE;
-    if (*angle > MAX_ANGLE)
-        *angle = MAX_ANGLE;
+    if (angle < -MAX_ANGLE)
+        angle = -MAX_ANGLE;
+    if (angle > MAX_ANGLE)
+        angle = MAX_ANGLE;
 }
 
 
@@ -193,12 +193,9 @@ void setup()
 void loop()
 {
     ButtonPressEvent event = button->getButtonPress();
-    
-    currentAngle += event.getAngleDelta();
-    //if (currentAngle < -MAX_ANGLE)
-    //    currentAngle = -MAX_ANGLE;
-    //if (currentAngle > MAX_ANGLE)
-    //    currentAngle = MAX_ANGLE;
+    float angle = event.getAngleDelta();
+    currentAngle += angle;
+    adjustAngleInBounds(currentAngle);
 
     if (ledIndicator != NULL)
     {
