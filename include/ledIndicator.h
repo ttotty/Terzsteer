@@ -3,6 +3,10 @@
 
 #define USE_LEDS
 
+#define BEFORE_AUTH_FREQUENCY 1000 / portTICK_PERIOD_MS
+#define AFTER_AUTH_FREQUENCY 5000 / portTICK_PERIOD_MS
+#define TURN_FREQUENCY 50 / portTICK_PERIOD_MS
+
 TaskHandle_t beforeAuthenticationHandle = NULL;
 TaskHandle_t afterAuthenticationHandle = NULL;
 TaskHandle_t leftTurnHandle = NULL;
@@ -11,51 +15,67 @@ class LedIndicator
 {
     static void beforeAuthenticationTask(void *parameters)
     {
+        TickType_t lastWakeTime;
+
         vTaskSuspend(afterAuthenticationHandle);
         for (;;)
         {
             digitalWrite(LED_CONNECTION, LED_ON);
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            lastWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&lastWakeTime, BEFORE_AUTH_FREQUENCY);
             digitalWrite(LED_CONNECTION, LED_OFF);
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            lastWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&lastWakeTime, BEFORE_AUTH_FREQUENCY);
         }
     }
     static void afterAuthenticationTask(void *parameters)
     {
+        TickType_t lastWakeTime;
+
         vTaskSuspend(beforeAuthenticationHandle);
         for (;;)
         {
             digitalWrite(LED_CONNECTION, LED_ON);
-            vTaskDelay(5000 / portTICK_PERIOD_MS);
+            lastWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&lastWakeTime, AFTER_AUTH_FREQUENCY);
             digitalWrite(LED_CONNECTION, LED_OFF);
-            vTaskDelay(5000 / portTICK_PERIOD_MS);
+            lastWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&lastWakeTime, AFTER_AUTH_FREQUENCY);
         }
     }
 
     static void leftTurnTask(void *parameters)
     {
+        TickType_t lastWakeTime;
+
         for (;;)
         {
             for (int i = 0; i < 2; i++)
             {
                 digitalWrite(LED_LEFT, LED_ON);
-                vTaskDelay(50 / portTICK_PERIOD_MS);
+                lastWakeTime = xTaskGetTickCount();
+                vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
                 digitalWrite(LED_LEFT, LED_OFF);
-                vTaskDelay(50 / portTICK_PERIOD_MS);
+                lastWakeTime = xTaskGetTickCount();
+                vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
             }
             vTaskSuspend(NULL);
         }
     }
     static void rightTurnTask(void *parameters)
     {
+        TickType_t lastWakeTime;
+
         for (;;)
         {
             for (int i = 0; i < 2; i++)
             {
                 digitalWrite(LED_RIGHT, LED_ON);
-                vTaskDelay(50 / portTICK_PERIOD_MS);
+                lastWakeTime = xTaskGetTickCount();
+                vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
                 digitalWrite(LED_RIGHT, LED_OFF);
-                vTaskDelay(50 / portTICK_PERIOD_MS);
+                lastWakeTime = xTaskGetTickCount();
+                vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
             }
             vTaskSuspend(NULL);
         }

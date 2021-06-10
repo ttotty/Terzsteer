@@ -4,7 +4,7 @@
 // Define SIMULATE_STEERING to turn on simulation
 #define SIMULATE_STEERING
 //#define SERIAL_ALL_EVENTS
-#define SIMULATE_EVENT_FREQUENCY 200
+#define SIMULATE_EVENT_FREQUENCY 175
 #define DEFAULT_DELAY SIMULATE_EVENT_FREQUENCY / portTICK_PERIOD_MS;
 #define DELAY_1_SECOND 1000 / portTICK_PERIOD_MS
 #define DELAY_5_SECONDS DELAY_1_SECOND * 5
@@ -25,6 +25,11 @@ struct ButtonPressEvent
     bool left = false;
     bool right = false;
 
+    bool buttonPressed()
+    {
+        return left || right;
+    }
+
     float getAngleDelta()
     {
         float delta = 0.0;
@@ -41,7 +46,7 @@ struct ButtonPressEvent
     }
 };
 #ifdef SIMULATE_STEERING
-const direction simulations[20] = {left, straight5Sec, 
+const direction simulations[20] = {left, straight5Sec,
                                    right, straight1Sec,
                                    straight, straight, straight,
                                    right, straight5Sec,
@@ -62,8 +67,8 @@ class ButtonSimulation
             delay = DEFAULT_DELAY;
             simulationIndex = simulationIndex % eventCount;
             direction event = simulations[simulationIndex++];
-                simulationEvent.left = (event == left);
-                simulationEvent.right = (event == right);
+            simulationEvent.left = (event == left);
+            simulationEvent.right = (event == right);
 
             if (event == straight1Sec)
                 delay = DELAY_1_SECOND;
@@ -76,12 +81,12 @@ class ButtonSimulation
     }
 
 public:
-    void getCurrentEvent(ButtonPressEvent& event)
-    {        
-            event.left = simulationEvent.left;
-            event.right = simulationEvent.right;
-            simulationEvent.left = false;
-            simulationEvent.right = false;
+    void getCurrentEvent(ButtonPressEvent &event)
+    {
+        event.left = simulationEvent.left;
+        event.right = simulationEvent.right;
+        simulationEvent.left = false;
+        simulationEvent.right = false;
     }
 
     ButtonSimulation()
