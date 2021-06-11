@@ -6,17 +6,17 @@
  */ 
 
 #include <Arduino.h>
-#include "settings.h"
-#include "button.h"
-#include "ledIndicator.h"
-#include "zwiftBle.h"
+#include "Settings.h"
+#include "ButtonPressEvent.h"
+#include "Button.h"
+#include "LedIndicator.h"
+#include "ZwiftBle.h"
 
-#define RESET_STEERING_FREQUENCY 1000
 Button *button = NULL;
 LedIndicator *ledIndicator = NULL;
 ZwiftBle *zwift = NULL;
 unsigned long lastSteeringEventTime = 0;
-
+const unsigned long reset_steering_frequency = 1000;
 void setup()
 {
     serialBegin(115200);
@@ -46,16 +46,10 @@ void loop()
         ledIndicator->updateState(zwift->getAuthenticated(), event.left, event.right);
     }
 
-    if (event.buttonPressed())
+    bool straightEventRequired = ((millis() - lastSteeringEventTime) >= reset_steering_frequency);
+    if (straightEventRequired || event.buttonPressed())
     {
-        float angle = event.getAngleDelta();
-        zwift->addNotifiableAngle(angle);
-        lastSteeringEventTime = millis();
-    }
-    else if (millis() - lastSteeringEventTime >= RESET_STEERING_FREQUENCY)
-    {
-        float zeroAngle = 0.0;
-        zwift->addNotifiableAngle(zeroAngle);
+        zwift->addNotifiableAngle(event);
         lastSteeringEventTime = millis();
     }
 }

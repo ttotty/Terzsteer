@@ -1,7 +1,12 @@
+#ifndef SETTINGS_H
+#define SETTINGS_H
 #include <Arduino.h>
 
 // Define DEBUG_TO_SERIAL, to write debug information to the serial port
 #define DEBUG_TO_SERIAL
+//#define SERIAL_ALL_EVENTS
+// Define SIMULATE_STEERING to turn on simulation
+#define SIMULATE_STEERING
 
 #ifdef DEBUG_TO_SERIAL
 #define serialPrintln(X) Serial.println(X)
@@ -24,3 +29,4 @@
 #define LED_OFF HIGH
 
 #define BUTTON_PRESS_ANGLE 10.0
+#endif
