@@ -24,6 +24,7 @@ struct ButtonPressEvent
 {
     bool left = false;
     bool right = false;
+    unsigned long created; 
 
     bool buttonPressed()
     {
@@ -42,15 +43,15 @@ struct ButtonPressEvent
 
     void toString(char *outStr)
     {
-        sprintf(outStr, "Button press: left=%u, right=%u, delta=%f", left, right, getAngleDelta());
+        sprintf(outStr, "Button press: left=%u, right=%u, delta=%f, created=%u", left, right, getAngleDelta(), created);
     }
 };
 #ifdef SIMULATE_STEERING
-const direction simulations[20] = {left, straight5Sec,
-                                   right, straight1Sec,
-                                   straight, straight, straight,
+const direction simulations[24] = {left, straight5Sec,
                                    right, straight5Sec,
-                                   right, right, left, straight1Sec,
+                                   left, left, left, right, left, right, straight5Sec,
+                                   right, straight5Sec,
+                                   right, right, left, straight10Sec,
                                    straight10Sec,
                                    right, right, right, right, right, straight5Sec};
 
@@ -81,23 +82,18 @@ class ButtonSimulation
     }
 
 public:
-    void getCurrentEvent(ButtonPressEvent &event)
+    void receiveCurrentEvent(ButtonPressEvent &event)
     {
         event.left = simulationEvent.left;
         event.right = simulationEvent.right;
+        //once received default to straight simulation
         simulationEvent.left = false;
         simulationEvent.right = false;
     }
 
     ButtonSimulation()
     {
-        xTaskCreate(
-            task,
-            "simulation task",
-            5000, //stack size
-            NULL,
-            0, //priority
-            NULL);
+        xTaskCreate(task, "simulation task", 2000, NULL, 0, NULL);
     }
 };
 #endif
@@ -121,7 +117,7 @@ public:
     {
         ButtonPressEvent event;
 #ifdef SIMULATE_STEERING
-        buttonSimulation->getCurrentEvent(event);
+        buttonSimulation->receiveCurrentEvent(event);
 #else
         event.left = digitalRead(LEFT_BUTTON);
         event.right = digitalRead(RIGHT_BUTTON);

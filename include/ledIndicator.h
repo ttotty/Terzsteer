@@ -5,7 +5,8 @@
 
 #define BEFORE_AUTH_FREQUENCY 1000 / portTICK_PERIOD_MS
 #define AFTER_AUTH_FREQUENCY 5000 / portTICK_PERIOD_MS
-#define TURN_FREQUENCY 50 / portTICK_PERIOD_MS
+#define TURN_FREQUENCY 100 / portTICK_PERIOD_MS
+#define AUTH_BLINK_TIME 100 / portTICK_PERIOD_MS
 
 TaskHandle_t beforeAuthenticationHandle = NULL;
 TaskHandle_t afterAuthenticationHandle = NULL;
@@ -16,14 +17,16 @@ class LedIndicator
     static void beforeAuthenticationTask(void *parameters)
     {
         TickType_t lastWakeTime;
+        uint8_t pin = ( uint32_t ) parameters;
 
-        vTaskSuspend(afterAuthenticationHandle);
         for (;;)
         {
-            digitalWrite(LED_CONNECTION, LED_ON);
+            vTaskSuspend(afterAuthenticationHandle);
+
+            digitalWrite(pin, LED_ON);
             lastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&lastWakeTime, BEFORE_AUTH_FREQUENCY);
-            digitalWrite(LED_CONNECTION, LED_OFF);
+            vTaskDelayUntil(&lastWakeTime, AUTH_BLINK_TIME);
+            digitalWrite(pin, LED_OFF);
             lastWakeTime = xTaskGetTickCount();
             vTaskDelayUntil(&lastWakeTime, BEFORE_AUTH_FREQUENCY);
         }
@@ -31,49 +34,34 @@ class LedIndicator
     static void afterAuthenticationTask(void *parameters)
     {
         TickType_t lastWakeTime;
+        uint8_t pin = ( uint32_t ) parameters;
 
-        vTaskSuspend(beforeAuthenticationHandle);
         for (;;)
         {
-            digitalWrite(LED_CONNECTION, LED_ON);
+            vTaskSuspend(beforeAuthenticationHandle);
+
+            digitalWrite(pin, LED_ON);
             lastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&lastWakeTime, AFTER_AUTH_FREQUENCY);
-            digitalWrite(LED_CONNECTION, LED_OFF);
+            vTaskDelayUntil(&lastWakeTime, AUTH_BLINK_TIME);
+            digitalWrite(pin, LED_OFF);
             lastWakeTime = xTaskGetTickCount();
             vTaskDelayUntil(&lastWakeTime, AFTER_AUTH_FREQUENCY);
         }
     }
 
-    static void leftTurnTask(void *parameters)
+    static void turnTask(void *parameters)
     {
         TickType_t lastWakeTime;
+        uint8_t pin = ( uint32_t ) parameters;
 
         for (;;)
         {
             for (int i = 0; i < 2; i++)
             {
-                digitalWrite(LED_LEFT, LED_ON);
+                digitalWrite(pin, LED_ON);
                 lastWakeTime = xTaskGetTickCount();
                 vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
-                digitalWrite(LED_LEFT, LED_OFF);
-                lastWakeTime = xTaskGetTickCount();
-                vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
-            }
-            vTaskSuspend(NULL);
-        }
-    }
-    static void rightTurnTask(void *parameters)
-    {
-        TickType_t lastWakeTime;
-
-        for (;;)
-        {
-            for (int i = 0; i < 2; i++)
-            {
-                digitalWrite(LED_RIGHT, LED_ON);
-                lastWakeTime = xTaskGetTickCount();
-                vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
-                digitalWrite(LED_RIGHT, LED_OFF);
+                digitalWrite(pin, LED_OFF);
                 lastWakeTime = xTaskGetTickCount();
                 vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
             }
@@ -111,40 +99,18 @@ public:
         pinMode(LED_LEFT, OUTPUT);
         pinMode(LED_RIGHT, OUTPUT);
 
-        xTaskCreate(
-            beforeAuthenticationTask,
-            "before auth task",
-            2000, //stack size
-            NULL,
-            1, //priority
-            &beforeAuthenticationHandle);
+        xTaskCreate(beforeAuthenticationTask,
+                    "before auth task", 2000, (void *)LED_CONNECTION, 1, &beforeAuthenticationHandle);
         vTaskSuspend(beforeAuthenticationHandle);
 
-        xTaskCreate(
-            afterAuthenticationTask,
-            "after auth task",
-            2000, //stack size
-            NULL,
-            1, //priority
-            &afterAuthenticationHandle);
+        xTaskCreate(afterAuthenticationTask,
+                    "after auth task", 2000, (void *)LED_CONNECTION, 1, &afterAuthenticationHandle);
         vTaskSuspend(afterAuthenticationHandle);
 
-        xTaskCreate(
-            leftTurnTask,
-            "left turn task",
-            2000, //stack size
-            NULL,
-            1, //priority
-            &leftTurnHandle);
+        xTaskCreate(turnTask, "left turn task", 2000, (void *) LED_LEFT, 1, &leftTurnHandle);
         vTaskSuspend(leftTurnHandle);
 
-        xTaskCreate(
-            rightTurnTask,
-            "right turn task",
-            2000, //stack size
-            NULL,
-            1, //priority
-            &rightTurnHandle);
+        xTaskCreate(turnTask, "right turn task", 2000, (void *)LED_RIGHT, 1, &rightTurnHandle);
         vTaskSuspend(rightTurnHandle);
     }
 };

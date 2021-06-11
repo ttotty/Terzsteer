@@ -16,7 +16,7 @@
 // Pin allocation
 #define LEFT_BUTTON 32
 #define RIGHT_BUTTON 33
-#define LED_CONNECTION 1//17
+#define LED_CONNECTION 17
 #define LED_LEFT 19
 #define LED_RIGHT 18
 

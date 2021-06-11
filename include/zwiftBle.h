@@ -8,6 +8,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include "settings.h"
+#include "button.h"
 
 #define NAME "Terzsteer"
 #define STEERING_DEVICE_UUID "347b0001-7635-408b-8918-8ff3949ce592"
@@ -79,7 +80,7 @@ class ZwiftBle
         std::string rxValue = pRx->getValue();
         if (rxValue.length() == 0)
         {
-            serialPrintln("No data yet...");
+            serialPrintln("No data...");
         }
         else
         {
@@ -174,11 +175,16 @@ class ZwiftBle
             // disconnecting
             if (!deviceConnected && oldDeviceConnected)
             {
-                delay(DELAY_HANDSHAKE2);     // give the bluetooth stack the chance to get things ready
-                pServer->startAdvertising(); // restart advertising
+                // give the bluetooth stack the chance to get things ready
+                delay(DELAY_HANDSHAKE2);     
+                pServer->startAdvertising();
                 serialPrintln("Nothing connected, start advertising");
                 oldDeviceConnected = deviceConnected;
+
+                //force re-authentication in case zwift restarts
+                authenticated = false;
             }
+
             // connecting
             if (deviceConnected && !oldDeviceConnected)
             {
@@ -191,6 +197,11 @@ class ZwiftBle
     }
 
 public:
+    bool getAuthenticated()
+    {
+        return authenticated;
+    }
+
     void addNotifiableAngle(float angle)
     {
         if (xQueueSendToBack(steeringQueue, &angle, QUEUE_WRITE_TIMEOUT) == errQUEUE_FULL)
@@ -209,7 +220,10 @@ public:
     {
         serialPrintln("Creating event queue...");
         steeringQueue = xQueueCreate(5, sizeof(float));
+    }
 
+    void setupBle()
+    {
         serialPrintln("Creating BLE server...");
         BLEDevice::init(NAME);
         pServer = BLEDevice::createServer();

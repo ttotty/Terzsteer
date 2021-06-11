@@ -32,6 +32,7 @@ void setup()
 
     serialPrintln("Setup Zwift BLE...");
     zwift = new ZwiftBle();
+    zwift->setupBle();
 
     ledIndicator->starting(false);
 }
@@ -42,7 +43,7 @@ void loop()
 
     if (ledIndicator != NULL)
     {
-        ledIndicator->updateState(authenticated, event.left, event.right);
+        ledIndicator->updateState(zwift->getAuthenticated(), event.left, event.right);
     }
 
     if (event.buttonPressed())
