@@ -3,7 +3,7 @@
  * https://github.com/gertvantslot/zwift-steering-esp32
  * and some from here too:
  * https://github.com/stefaandesmet2003/ESP32Sterzo
- */ 
+ */
 
 #include <Arduino.h>
 #include "Settings.h"
@@ -43,13 +43,14 @@ void loop()
 
     if (ledIndicator != NULL)
     {
-        ledIndicator->updateState(zwift->getAuthenticated(), event.left, event.right);
+        ledIndicator->updateState(zwift->getAuthenticated(), event);
     }
 
-    bool straightEventRequired = ((millis() - lastSteeringEventTime) >= reset_steering_frequency);
+    unsigned long now = millis();
+    bool straightEventRequired = (now - lastSteeringEventTime > reset_steering_frequency);
     if (straightEventRequired || event.buttonPressed())
     {
         zwift->addNotifiableAngle(event);
-        lastSteeringEventTime = millis();
+        lastSteeringEventTime = now;
     }
 }

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "Settings.h"
 #include "LedIndicator.h"
+#include "ButtonPressEvent.h"
 
 static TaskHandle_t beforeAuthenticationHandle = NULL;
 static TaskHandle_t afterAuthenticationHandle = NULL;
@@ -70,18 +71,16 @@ void LedIndicator::starting(bool show)
     digitalWrite(LED_RIGHT, on);
 }
 
-void LedIndicator::updateState(bool authenticated,
-                               bool leftPressed,
-                               bool rightPressed)
+void LedIndicator::updateState(bool authenticated, ButtonPressEvent buttonPress)
 {
     if (authenticated)
         vTaskResume(afterAuthenticationHandle);
     else
         vTaskResume(beforeAuthenticationHandle);
 
-    if (leftPressed)
+    if (buttonPress.left)
         vTaskResume(leftTurnHandle);
-    if (rightPressed)
+    if (buttonPress.right)
         vTaskResume(rightTurnHandle);
 }
 

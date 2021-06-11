@@ -1,6 +1,7 @@
 #ifndef LEDINDICATOR_H
 #define LEDINDICATOR_H
 #include <Arduino.h>
+#include "ButtonPressEvent.h"
 
 #define USE_LEDS
 
@@ -14,11 +15,7 @@ class LedIndicator
 
 public:
     void starting(bool show);
-
-    void updateState(bool authenticated,
-                     bool leftPressed,
-                     bool rightPressed);
-
+    void updateState(bool authenticated, ButtonPressEvent buttonPress);
     LedIndicator();
 };
 #endif

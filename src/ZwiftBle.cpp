@@ -117,36 +117,43 @@ static void notifyTask(void *parameters)
         {
             float totalAngle = 0.0;
             bool hasEvents = false;
-            //ignore old events and add the rest
+
             unsigned long now = millis();
-            ButtonPressEvent activeEvents[QUEUE_SIZE];
+            ButtonPressEvent *pActiveEvents[QUEUE_SIZE];
             int activeCount = 0;
             ButtonPressEvent nextEvent;
             while (xQueueReceive(steeringQueue, &nextEvent, QUEUE_READ_TIMEOUT) == pdPASS)
             {
+                //ignore old events
                 if (now - nextEvent.created < BUTTON_EVENT_EXPIRE)
                 {
-                    totalAngle += nextEvent.getAngleDelta();
+                    float angle = nextEvent.getAngleDelta();
+                    totalAngle += angle;
                     hasEvents = true;
-                    activeEvents[activeCount++] = nextEvent;
+
+                    //don't re add the 0 events even if they are current
+                    if (angle != 0)
+                    {
+                        pActiveEvents[activeCount++] = &nextEvent;
+                    }
                 }
             }
 
             if (hasEvents)
             {
                 adjustAngleInBounds(totalAngle);
-                serialPrint("Summed=");
-                serialPrint(activeCount);
-                serialPrint(", angle=");
-                serialPrintln(totalAngle);
+                serialPrint(totalAngle);
+                serialPrintln("°");
                 pAngle->setValue(totalAngle);
                 pAngle->notify();
 
                 //add the active events back in so they are still used until they expire
-                for(int i=0; i<activeCount; i++)
+                for (int i = activeCount - 1; i >= 0; i--)
                 {
+                    ButtonPressEvent oldEvent = *pActiveEvents[i];
+                    //serialPrintln(oldEvent.created);
                     //TODO: check if it really matters that it fails to get a lock and looses it
-                    xQueueSendToFront(steeringQueue, &activeEvents[i], 0);           
+                    xQueueSendToFront(steeringQueue, &oldEvent, 0);
                 }
             }
         }
