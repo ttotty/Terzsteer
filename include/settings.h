@@ -4,9 +4,25 @@
 
 // Define DEBUG_TO_SERIAL, to write debug information to the serial port
 #define DEBUG_TO_SERIAL
-//#define SERIAL_ALL_EVENTS
+#define SERIAL_ALL_EVENTS
 // Define SIMULATE_STEERING to turn on simulation
 #define SIMULATE_STEERING
+
+//angles
+#define MAX_ANGLE 40.0
+#define BUTTON_PRESS_ANGLE 5.0
+
+//button events
+#define BUTTON_EVENT_EXPIRE 500
+#define MAX_BUTTON_EVENTS 5
+
+//Task intervals
+#define STILL_STEERING_FREQUENCY 1000
+#define SIMULATE_EVENT_FREQUENCY 175
+#define CONNECTION_CHECK_FREQUENCY 500
+#define NOTIFY_FREQUENCY 100
+#define UNAUTHENTICATED_FREQUENCY 125
+#define AUTHENTICATED_FREQUENCY 5000
 
 #ifdef DEBUG_TO_SERIAL
 #define serialPrintln(X) Serial.println(X)
@@ -27,6 +43,4 @@
 
 #define LED_ON LOW
 #define LED_OFF HIGH
-
-#define BUTTON_PRESS_ANGLE 10.0
 #endif

@@ -43,6 +43,14 @@ static void adjustAngleInBounds(float &angle)
         angle = MAX_ANGLE;
 }
 
+static void clearQueue()
+{
+    ButtonPressEvent nextEvent;
+    while (xQueueReceive(steeringQueue, &nextEvent, QUEUE_READ_TIMEOUT) == pdPASS)
+        ;
+
+}
+
 static bool authenticate()
 {
     bool hasAuthenticated = false;
@@ -64,7 +72,7 @@ static bool authenticate()
         if (rxValue[0] == 0x03 && rxValue[1] == 0x10)
         {
             lastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&lastWakeTime, DELAY_HANDSHAKE);
+            vTaskDelayUntil(&lastWakeTime, DELAY_HANDSHAKE / portTICK_PERIOD_MS);
 
             //send 0x0310FFFF (the last two octets can be anything)
             pTx->setValue(authChallenge, 4);
@@ -72,13 +80,13 @@ static bool authenticate()
             //Zwift will now send 4 bytes as a response, which start with 0x3111
             //We don't really care what it is as long as we get a response
             lastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&lastWakeTime, DELAY_HANDSHAKE);
+            vTaskDelayUntil(&lastWakeTime, DELAY_HANDSHAKE / portTICK_PERIOD_MS);
             rxValue = pRx->getValue();
             if (rxValue.length() == 4)
             {
                 //connected, so send 0x0311ff
                 lastWakeTime = xTaskGetTickCount();
-                vTaskDelayUntil(&lastWakeTime, DELAY_HANDSHAKE2);
+                vTaskDelayUntil(&lastWakeTime, DELAY_HANDSHAKE2 / portTICK_PERIOD_MS);
                 pTx->setValue(authSuccess, 3);
                 pTx->indicate();
                 hasAuthenticated = true;
@@ -94,13 +102,13 @@ static void authenticateTask(void *parameters)
 {
     for (;;)
     {
-        TickType_t delay = UNAUTHENTICATED_FREQUENCY;
+        TickType_t delay = UNAUTHENTICATED_FREQUENCY / portTICK_PERIOD_MS;
         if (deviceConnected)
         {
             if (authenticated || authenticate())
             {
                 authenticated = true;
-                delay = AUTHENTICATED_FREQUENCY;
+                delay = AUTHENTICATED_FREQUENCY / portTICK_PERIOD_MS;
             }
         }
         vTaskDelay(delay);
@@ -125,7 +133,7 @@ static void notifyTask(void *parameters)
             while (xQueueReceive(steeringQueue, &nextEvent, QUEUE_READ_TIMEOUT) == pdPASS)
             {
                 //ignore old events
-                if (now - nextEvent.created < BUTTON_EVENT_EXPIRE)
+                if (!nextEvent.isExpired(now))
                 {
                     float angle = nextEvent.getAngleDelta();
                     totalAngle += angle;
@@ -148,23 +156,24 @@ static void notifyTask(void *parameters)
                 pAngle->notify();
 
                 //add the active events back in so they are still used until they expire
+                //they are ordered so do the most recent first
                 for (int i = activeCount - 1; i >= 0; i--)
                 {
                     ButtonPressEvent oldEvent = *pActiveEvents[i];
                     //serialPrintln(oldEvent.created);
-                    //TODO: check if it really matters that it fails to get a lock and looses it
-                    xQueueSendToFront(steeringQueue, &oldEvent, 0);
+                    //events are ordered so stop if the older events can't fit in the queue
+                    //as they can be discarded
+                    if (errQUEUE_FULL == xQueueSendToFront(steeringQueue, &oldEvent, 0))
+                        break;
                 }
             }
         }
         else
         {
             //clear any events so they are not sent on connect
-            ButtonPressEvent nextEvent;
-            while (xQueueReceive(steeringQueue, &nextEvent, QUEUE_READ_TIMEOUT) == pdPASS)
-                ;
+            clearQueue();
         }
-        vTaskDelayUntil(&lastWakeTime, NOTIFY_FREQUENCY);
+        vTaskDelayUntil(&lastWakeTime, NOTIFY_FREQUENCY / portTICK_PERIOD_MS);
     }
 }
 
@@ -176,7 +185,7 @@ static void connectTask(void *parameters)
         if (!deviceConnected && oldDeviceConnected)
         {
             // give the bluetooth stack the chance to get things ready
-            delay(DELAY_HANDSHAKE2);
+            delay(DELAY_HANDSHAKE2 / portTICK_PERIOD_MS);
             pServer->startAdvertising();
             serialPrintln("Nothing connected, start advertising");
             oldDeviceConnected = deviceConnected;
@@ -201,28 +210,32 @@ bool ZwiftBle::getAuthenticated()
     return authenticated;
 }
 
-void ZwiftBle::addNotifiableAngle(ButtonPressEvent buttonEvent)
+bool ZwiftBle::addNotifiableAngle(ButtonPressEvent buttonEvent)
 {
+    //discard expired button events
+    if (buttonEvent.isExpired(millis()))
+        return false;
+
+    bool added = false;
+    if(buttonEvent.isStraight())
+    {
+        //go straight so clear out the queue
+        clearQueue();
+    }
+    
     if (xQueueSendToBack(steeringQueue, &buttonEvent, QUEUE_WRITE_TIMEOUT) == errQUEUE_FULL)
     {
-        //too many events so expire old events and aggregate the rest
-        unsigned long now = millis();
+        //too many events so remove the oldest so we can try again
         ButtonPressEvent nextEvent;
-        buttonEvent.useOverrideAngle = true;
-        buttonEvent.overrideAngle = buttonEvent.getAngleDelta();
-
-        while (xQueueReceive(steeringQueue, &nextEvent, QUEUE_READ_TIMEOUT) == pdPASS)
-        {
-            if (now - nextEvent.created < BUTTON_EVENT_EXPIRE)
-            {
-                buttonEvent.overrideAngle += nextEvent.getAngleDelta();
-                buttonEvent.left |= nextEvent.left;
-                buttonEvent.right |= nextEvent.right;
-            }
-        }
-        //in theory could still fail to add the event if queue was blocked from clearing but not worth worrying about
-        xQueueSendToBack(steeringQueue, &buttonEvent, QUEUE_WRITE_TIMEOUT);
+        xQueueReceive(steeringQueue, &nextEvent, QUEUE_READ_TIMEOUT);
+        //even if that did not work we have another go in case he queue has space now
+        added = (pdPASS == xQueueSendToBack(steeringQueue, &buttonEvent, QUEUE_WRITE_TIMEOUT));
     }
+    else
+    {
+        added = true;
+    }
+    return added;
 }
 
 ZwiftBle::ZwiftBle()

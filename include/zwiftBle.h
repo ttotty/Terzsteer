@@ -9,15 +9,8 @@
 #define STEERING_RX_CHAR_UUID "347b0031-7635-408b-8918-8ff3949ce592"    //write
 #define STEERING_TX_CHAR_UUID "347b0032-7635-408b-8918-8ff3949ce592"    //indicate
 
-#define MAX_ANGLE 40.0
-
-#define CONNECTION_CHECK_FREQUENCY 500
-#define NOTIFY_FREQUENCY 100 / portTICK_PERIOD_MS
-#define UNAUTHENTICATED_FREQUENCY 125 / portTICK_PERIOD_MS
-#define AUTHENTICATED_FREQUENCY 5000 / portTICK_PERIOD_MS
-#define DELAY_HANDSHAKE 125 / portTICK_PERIOD_MS
-#define DELAY_HANDSHAKE2 250 / portTICK_PERIOD_MS
-#define BUTTON_EVENT_EXPIRE 900 //milliseconds
+#define DELAY_HANDSHAKE 125
+#define DELAY_HANDSHAKE2 250
 #define QUEUE_SIZE 20
 #define QUEUE_WRITE_TIMEOUT 10
 #define QUEUE_READ_TIMEOUT 5
@@ -26,7 +19,7 @@ class ZwiftBle
 {
 public:
     bool getAuthenticated();
-    void addNotifiableAngle(ButtonPressEvent buttonEvent);
+    bool addNotifiableAngle(ButtonPressEvent buttonEvent);
     ZwiftBle();
     void setupBle();
 };

@@ -1,15 +1,14 @@
 #include <Arduino.h>
 #include "ButtonPressEvent.h"
 #include "ButtonSimulation.h"
+#include "ButtonPressEvents.h"
 #include "Settings.h"
-
-#define SIMULATION_QUEUE_SIZE 10
 
 static QueueHandle_t simulationQueue;
 static void simulationTask(void *parameters)
 {
     volatile int simulationIndex = 0;
-    volatile int eventCount = sizeof(simulations);
+    const int eventCount = sizeof(simulations) / sizeof(simulations[0]);
     volatile int delay;
     for (;;)
     {
@@ -17,10 +16,10 @@ static void simulationTask(void *parameters)
         simulationIndex = simulationIndex % eventCount;
         Direction event = simulations[simulationIndex++];
         ButtonPressEvent simulationEvent;
-        simulationEvent.left = (event == left);
-        simulationEvent.right = (event == right);
 
-        xQueueSendToBack(simulationQueue, &simulationEvent, 5);
+        simulationEvent.press(event == left, event == right);
+        if(!simulationEvent.isStraight())
+            xQueueSendToBack(simulationQueue, &simulationEvent, 5);
 
         if (event == straight1Sec)
             delay = DELAY_1_SECOND;
@@ -28,21 +27,24 @@ static void simulationTask(void *parameters)
             delay = DELAY_5_SECONDS;
         else if (event == straight10Sec)
             delay = DELAY_10_SECONDS;
+
         vTaskDelay(delay);
     }
 }
 
-void ButtonSimulation::receiveCurrentEvent(ButtonPressEvent &event)
+void ButtonSimulation::getBufferedEvents(ButtonPressEvents &events)
 {
+    int count = 0;
     ButtonPressEvent nextEvent;
-    xQueueReceive(simulationQueue, &nextEvent, 5);
-    //default zeroed event can be used if there is none.
-    event.left = nextEvent.left;
-    event.right = nextEvent.right;
+    int maxEvents = events.getBufferSize();
+    while (count < maxEvents && xQueueReceive(simulationQueue, &nextEvent, 0) == pdPASS)
+    {
+        events.buffer[count++] = nextEvent;
+    }
 }
 
 ButtonSimulation::ButtonSimulation()
 {
-    simulationQueue = xQueueCreate(SIMULATION_QUEUE_SIZE, sizeof(ButtonPressEvent));
+    simulationQueue = xQueueCreate(MAX_BUTTON_EVENTS, sizeof(ButtonPressEvent));
     xTaskCreate(simulationTask, "simulation task", 2000, NULL, 0, NULL);
 }

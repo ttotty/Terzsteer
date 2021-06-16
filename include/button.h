@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "ButtonPressEvent.h"
 #include "ButtonSimulation.h"
+#include "Settings.h"
 
 class Button
 {
@@ -11,6 +12,6 @@ private:
 
 public:
     Button();
-    ButtonPressEvent getButtonPress();
+    ButtonPressEvents getButtonEvents();
 };
 #endif

@@ -22,7 +22,7 @@ static void beforeAuthenticationTask(void *parameters)
         vTaskDelayUntil(&lastWakeTime, AUTH_BLINK_TIME);
         digitalWrite(pin, LED_OFF);
         lastWakeTime = xTaskGetTickCount();
-        vTaskDelayUntil(&lastWakeTime, BEFORE_AUTH_FREQUENCY);
+        vTaskDelayUntil(&lastWakeTime, BEFORE_AUTH_FREQUENCY / portTICK_PERIOD_MS);
     }
 }
 static void afterAuthenticationTask(void *parameters)
@@ -39,7 +39,7 @@ static void afterAuthenticationTask(void *parameters)
         vTaskDelayUntil(&lastWakeTime, AUTH_BLINK_TIME);
         digitalWrite(pin, LED_OFF);
         lastWakeTime = xTaskGetTickCount();
-        vTaskDelayUntil(&lastWakeTime, AFTER_AUTH_FREQUENCY);
+        vTaskDelayUntil(&lastWakeTime, AFTER_AUTH_FREQUENCY / portTICK_PERIOD_MS);
     }
 }
 
@@ -54,10 +54,10 @@ static void turnTask(void *parameters)
         {
             digitalWrite(pin, LED_ON);
             lastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
+            vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY / portTICK_PERIOD_MS);
             digitalWrite(pin, LED_OFF);
             lastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY);
+            vTaskDelayUntil(&lastWakeTime, TURN_FREQUENCY / portTICK_PERIOD_MS);
         }
         vTaskSuspend(NULL);
     }
@@ -78,9 +78,9 @@ void LedIndicator::updateState(bool authenticated, ButtonPressEvent buttonPress)
     else
         vTaskResume(beforeAuthenticationHandle);
 
-    if (buttonPress.left)
+    if (buttonPress.getLeft())
         vTaskResume(leftTurnHandle);
-    if (buttonPress.right)
+    if (buttonPress.getRight())
         vTaskResume(rightTurnHandle);
 }
 

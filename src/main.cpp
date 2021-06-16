@@ -11,12 +11,12 @@
 #include "Button.h"
 #include "LedIndicator.h"
 #include "ZwiftBle.h"
+#include "ButtonPressEvents.h"
 
 Button *button = NULL;
 LedIndicator *ledIndicator = NULL;
 ZwiftBle *zwift = NULL;
 unsigned long lastSteeringEventTime = 0;
-const unsigned long reset_steering_frequency = 1000;
 void setup()
 {
     serialBegin(115200);
@@ -39,18 +39,42 @@ void setup()
 
 void loop()
 {
-    ButtonPressEvent event = button->getButtonPress();
-
-    if (ledIndicator != NULL)
+    ButtonPressEvents buffer = button->getButtonEvents();
+    bool isButtonPressed = false;
+    int index = 0;
+    int bufferSize = buffer.getBufferSize();
+    while (index < bufferSize)
     {
-        ledIndicator->updateState(zwift->getAuthenticated(), event);
+        ButtonPressEvent event = buffer.buffer[index];
+        index++;
+        //events are in order so no need to process after we hit one that is not a press event
+        if (!event.buttonPressed())
+        {
+            break;
+        }
+        isButtonPressed |= zwift->addNotifiableAngle(event);
     }
 
-    unsigned long now = millis();
-    bool straightEventRequired = (now - lastSteeringEventTime > reset_steering_frequency);
-    if (straightEventRequired || event.buttonPressed())
+    if (isButtonPressed)
     {
-        zwift->addNotifiableAngle(event);
-        lastSteeringEventTime = now;
+        lastSteeringEventTime = millis();
+        //only indicate the most recent
+        if (ledIndicator != NULL)
+            ledIndicator->updateState(zwift->getAuthenticated(), buffer.buffer[index - 1]);
+    }
+
+    //add 'still here & going straight' steering event if required
+    if (isButtonPressed == false)
+    {
+        unsigned long now = millis();
+        bool straightEventRequired = (now - lastSteeringEventTime > STILL_STEERING_FREQUENCY);
+        if (straightEventRequired)
+        {
+            //serialPrintln("straight");
+            ButtonPressEvent stillHere;
+            stillHere.press(true, true);
+            zwift->addNotifiableAngle(stillHere);
+            lastSteeringEventTime = now;
+        }
     }
 }

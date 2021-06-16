@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "Settings.h"
-#include "ButtonPressEvent.h"
+#include "ButtonPressEvents.h"
 #include "Button.h"
 
 Button::Button()
@@ -13,27 +13,17 @@ Button::Button()
 #endif
 }
 
-ButtonPressEvent Button::getButtonPress()
+ButtonPressEvents Button::getButtonEvents()
 {
-    ButtonPressEvent event;
+    ButtonPressEvents events;
 #ifdef SIMULATE_STEERING
-    buttonSimulation->receiveCurrentEvent(event);
+    buttonSimulation->getBufferedEvents(events);
 #else
-    event.left = digitalRead(LEFT_BUTTON);
-    event.right = digitalRead(RIGHT_BUTTON);
+    //TODO: get button presses entered through ISR
+    
+    //event.left = digitalRead(LEFT_BUTTON);
+    //event.right = digitalRead(RIGHT_BUTTON);
 #endif
 
-#ifdef SERIAL_ALL_EVENTS
-    float deltaAngle = event.getAngleDelta();
-    static float previousDelta = 0.0;
-    if (previousDelta != deltaAngle)
-    {
-        char eventText[80];
-        event.toString(eventText);
-        serialPrintln(eventText);
-    }
-    previousDelta = deltaAngle;
-#endif
-
-    return event;
+    return events;
 }

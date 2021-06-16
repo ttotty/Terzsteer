@@ -2,9 +2,8 @@
 #define BUTTONSIMULATION_H
 #include <Arduino.h>
 #include "Settings.h"
-#include "ButtonPressEvent.h"
+#include "ButtonPressEvents.h"
 
-#define SIMULATE_EVENT_FREQUENCY 175
 #define DEFAULT_DELAY SIMULATE_EVENT_FREQUENCY / portTICK_PERIOD_MS
 #define DELAY_1_SECOND 1000 / portTICK_PERIOD_MS
 #define DELAY_5_SECONDS DELAY_1_SECOND * 5
@@ -20,19 +19,21 @@ enum Direction
     straight10Sec
 };
 
-const Direction simulations[24] = {left, straight5Sec,
+const Direction simulations[4] = {left, left, straight5Sec, right};
+/*const Direction simulations[24] = {left, straight5Sec,
                                    right, straight5Sec,
                                    left, left, left, right, left, right, straight5Sec,
                                    right, straight5Sec,
                                    right, right, left, straight10Sec,
                                    straight10Sec,
                                    right, right, right, right, right, straight5Sec};
+*/
 
 class ButtonSimulation
 {
 public:
     static void task(void *parameters);
-    void receiveCurrentEvent(ButtonPressEvent &event);
+    void getBufferedEvents(ButtonPressEvents &events);
     ButtonSimulation();
 };
 #endif
